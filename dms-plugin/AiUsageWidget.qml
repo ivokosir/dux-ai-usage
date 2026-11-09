@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Effects
 import Quickshell
 import qs.Common
 import qs.Widgets
@@ -220,12 +221,26 @@ PluginComponent {
         }
     }
 
-    // The bar shows only which subscriptions exist; quota lives in the popout.
-    component BarIcon: ProviderIcon {
-        property var account
+    // The bar shows a single agent icon; every account lives in the popout.
+    component AgentIcon: Item {
+        implicitWidth: Theme.iconSize - 6
+        implicitHeight: implicitWidth
 
-        provider: account.provider
-        opacity: root.isReachable(account) ? 1 : 0.4
+        Image {
+            anchors.fill: parent
+            source: Qt.resolvedUrl("agent.svg")
+            sourceSize.width: 64
+            sourceSize.height: 64
+            fillMode: Image.PreserveAspectFit
+            smooth: true
+            mipmap: true
+            layer.enabled: true
+            layer.effect: MultiEffect {
+                saturation: 0
+                colorization: 1
+                colorizationColor: root.loadFailed ? Theme.error : Theme.widgetIconColor
+            }
+        }
     }
 
     // One quota per line, laid out as a table: name, meter, percent, reset.
@@ -359,53 +374,11 @@ PluginComponent {
     }
 
     horizontalBarPill: Component {
-        Row {
-            spacing: Theme.spacingXS + 2
-
-            DankIcon {
-                visible: root.sortedAccounts.length === 0
-                name: "data_usage"
-                size: Theme.iconSize - 6
-                color: root.loadFailed ? Theme.error : Theme.surfaceVariantText
-                anchors.verticalCenter: parent.verticalCenter
-            }
-
-            Repeater {
-                model: root.sortedAccounts
-
-                delegate: BarIcon {
-                    required property var modelData
-
-                    account: modelData
-                    anchors.verticalCenter: parent.verticalCenter
-                }
-            }
-        }
+        AgentIcon {}
     }
 
     verticalBarPill: Component {
-        Column {
-            spacing: Theme.spacingXS
-
-            DankIcon {
-                visible: root.sortedAccounts.length === 0
-                name: "data_usage"
-                size: Theme.iconSize - 6
-                color: root.loadFailed ? Theme.error : Theme.surfaceVariantText
-                anchors.horizontalCenter: parent.horizontalCenter
-            }
-
-            Repeater {
-                model: root.sortedAccounts
-
-                delegate: BarIcon {
-                    required property var modelData
-
-                    account: modelData
-                    anchors.horizontalCenter: parent.horizontalCenter
-                }
-            }
-        }
+        AgentIcon {}
     }
 
     popoutContent: Component {

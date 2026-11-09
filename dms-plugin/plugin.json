@@ -9,7 +9,7 @@
     "dankbar-widget"
   ],
   "component": "./AiUsageWidget.qml",
-  "icon": "data_usage",
+  "icon": "smart_toy",
   "requires_dms": ">=1.5.0",
   "permissions": [
     "process"
