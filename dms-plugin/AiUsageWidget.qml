@@ -317,7 +317,6 @@ PluginComponent {
             id: disabledIcon
 
             provider: disabledRoot.account.provider
-            size: Theme.iconSizeSmall - 4
             anchors.verticalCenter: parent.verticalCenter
         }
 
@@ -325,7 +324,8 @@ PluginComponent {
             width: disabledRoot.width - disabledIcon.width - disabledTag.implicitWidth - disabledRoot.spacing * 2
             text: root.displayName(disabledRoot.account)
             textFormat: Text.PlainText
-            font.pixelSize: Theme.fontSizeSmall
+            font.pixelSize: Theme.fontSizeMedium
+            font.weight: Font.Medium
             color: Theme.surfaceText
             elide: Text.ElideRight
             anchors.verticalCenter: parent.verticalCenter
@@ -335,7 +335,7 @@ PluginComponent {
             id: disabledTag
 
             text: "disabled"
-            font.pixelSize: Theme.fontSizeSmall
+            font.pixelSize: Theme.fontSizeMedium
             color: Theme.surfaceVariantText
             anchors.verticalCenter: parent.verticalCenter
         }
