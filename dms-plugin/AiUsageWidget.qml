@@ -221,28 +221,29 @@ PluginComponent {
     }
 
     // The bar shows a single agent icon; every account lives in the popout.
-    // Lucide "bot" (ISC). Painted directly in the theme color: a tint effect
-    // renders the thin strokes soft and greyish.
+    // A bot after Lucide's (ISC), redrawn on a 20 px grid and rendered 1:1:
+    // 2 px strokes on whole-pixel centers keep every edge sharp. Painted
+    // directly in the theme color, since a tint effect greys thin strokes.
     component AgentIcon: Item {
         id: agentIconRoot
 
         readonly property color iconColor: root.loadFailed ? Theme.error : Theme.widgetIconColor
-        readonly property string svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"'
-            + ' stroke="' + agentIconRoot.iconColor.toString() + '" stroke-width="2.4"'
-            + ' stroke-linecap="round" stroke-linejoin="round">'
-            + '<path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/>'
-            + '<path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/></svg>'
+        readonly property string svg: '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20"'
+            + ' viewBox="0 0 20 20" fill="none" stroke="' + agentIconRoot.iconColor.toString() + '"'
+            + ' stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'
+            + '<path d="M10 7V3H7"/><rect x="3" y="7" width="14" height="10" rx="2"/>'
+            + '<path d="M1 12h2"/><path d="M17 12h2"/><path d="M7 11v2"/><path d="M13 11v2"/></svg>'
 
-        implicitWidth: Math.round(Theme.iconSize - 4)
-        implicitHeight: implicitWidth
+        implicitWidth: 20
+        implicitHeight: 20
 
         Image {
-            anchors.fill: parent
+            width: 20
+            height: 20
             source: "data:image/svg+xml;base64," + Qt.btoa(agentIconRoot.svg)
-            sourceSize.width: width
-            sourceSize.height: sourceSize.width
-            fillMode: Image.PreserveAspectFit
-            smooth: true
+            sourceSize.width: 20
+            sourceSize.height: 20
+            smooth: false
         }
     }
 
