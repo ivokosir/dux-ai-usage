@@ -1,5 +1,4 @@
 import QtQuick
-import QtQuick.Effects
 import Quickshell
 import qs.Common
 import qs.Widgets
@@ -222,24 +221,28 @@ PluginComponent {
     }
 
     // The bar shows a single agent icon; every account lives in the popout.
+    // Lucide "bot" (ISC). Painted directly in the theme color: a tint effect
+    // renders the thin strokes soft and greyish.
     component AgentIcon: Item {
-        implicitWidth: Theme.iconSize - 6
+        id: agentIconRoot
+
+        readonly property color iconColor: root.loadFailed ? Theme.error : Theme.widgetIconColor
+        readonly property string svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"'
+            + ' stroke="' + agentIconRoot.iconColor.toString() + '" stroke-width="2.4"'
+            + ' stroke-linecap="round" stroke-linejoin="round">'
+            + '<path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/>'
+            + '<path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/></svg>'
+
+        implicitWidth: Math.round(Theme.iconSize - 4)
         implicitHeight: implicitWidth
 
         Image {
             anchors.fill: parent
-            source: Qt.resolvedUrl("agent.svg")
-            sourceSize.width: 64
-            sourceSize.height: 64
+            source: "data:image/svg+xml;base64," + Qt.btoa(agentIconRoot.svg)
+            sourceSize.width: width
+            sourceSize.height: sourceSize.width
             fillMode: Image.PreserveAspectFit
             smooth: true
-            mipmap: true
-            layer.enabled: true
-            layer.effect: MultiEffect {
-                saturation: 0
-                colorization: 1
-                colorizationColor: root.loadFailed ? Theme.error : Theme.widgetIconColor
-            }
         }
     }
 
