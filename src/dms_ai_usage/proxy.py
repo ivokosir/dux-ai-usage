@@ -173,7 +173,7 @@ def collect_proxy(options: dict[str, Any]) -> dict[str, Any]:
                         and not any(c.isspace() or ord(c) < 32 for c in email)):
                     result["email"] = email
                 if auth.get("disabled"):
-                    raise ProxyError("not_connected")
+                    raise ProxyError("disabled")
                 index = auth.get("auth_index")
                 if not isinstance(index, str) or not index:
                     raise ProxyError("not_connected")

@@ -120,7 +120,7 @@ class ProxyTests(unittest.TestCase):
         self.files["files"][1]["disabled"] = True
         with patch("dms_ai_usage.proxy.request_json", return_value=self.files) as request:
             payload = collect_proxy(self.options)
-        self.assertEqual([a["error"] for a in payload["accounts"]], ["not_connected", "not_connected"])
+        self.assertEqual([a["error"] for a in payload["accounts"]], ["not_connected", "disabled"])
         request.assert_called_once()
 
     def test_plain_http_remote_host_is_rejected_before_sending_key(self) -> None:
@@ -172,6 +172,26 @@ class ProxyTests(unittest.TestCase):
         fetch.assert_not_called()
         self.assertEqual([[w["label"] for w in a["windows"]] for a in payload["accounts"]], [["7d"], ["7d"]])
 
+    def test_disabled_account_is_not_shown_as_stale(self) -> None:
+        path = Path(self.directory.name) / "usage.json"
+        config = {"cliproxyapi": {"ssh_host": "server", "management_key_file": "~/key",
+                                  "discover_accounts": False},
+                  "claude": [{"label": "Personal", "proxy_auth_file": "claude.json"}]}
+        path.write_text(json.dumps({"schema": 1, "generated_at": "2026-01-01T00:00:00Z",
+            "source_fingerprint": source_fingerprint(config), "accounts": [
+                {"provider": "claude", "label": "Personal", "status": "ok",
+                 "windows": [{"id": "seven_day", "label": "7d", "remaining_percent": 50}]}]}))
+        remote = {"accounts": [{"provider": "claude", "label": "Personal", "error": "disabled",
+                                "email": "user@example.test"}]}
+        with patch("dms_ai_usage.collector.subprocess.run",
+                   return_value=subprocess.CompletedProcess([], 0, json.dumps(remote))):
+            payload = collect(config, path)
+        account = payload["accounts"][0]
+        self.assertEqual(account["status"], "disabled")
+        self.assertEqual(account["windows"], [])
+        self.assertNotIn("error", account)
+        self.assertEqual(account["email"], "user@example.test")
+
     def test_ssh_timeout_is_reported_without_stderr(self) -> None:
         config = {"cliproxyapi": {"ssh_host": "server", "management_key_file": "~/key"},
                   "claude": [{"label": "Personal", "proxy_auth_file": "claude.json"}]}
@@ -194,7 +214,7 @@ class ProxyTests(unittest.TestCase):
         with patch("dms_ai_usage.proxy.request_json", side_effect=request):
             payload = collect_proxy(dict(self.options, discover_accounts=True, accounts=[]))
         self.assertEqual(len(payload["accounts"]), 3)
-        self.assertEqual(sum(a.get("error") == "not_connected" for a in payload["accounts"]), 1)
+        self.assertEqual(sum(a.get("error") == "disabled" for a in payload["accounts"]), 1)
         self.assertTrue(all(len(a["account_id"]) == 24 for a in payload["accounts"]))
         self.assertNotIn("private-", json.dumps(payload))
         self.assertNotIn(".json", json.dumps(payload))

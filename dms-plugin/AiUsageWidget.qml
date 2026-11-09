@@ -16,7 +16,12 @@ PluginComponent {
     property bool refreshInProgress: false
     property string collectorPath: Quickshell.env("HOME") + "/.local/bin/dms-ai-usage"
 
-    readonly property var sortedAccounts: root.providerAccounts("claude").concat(root.providerAccounts("codex"))
+    // Active subscriptions first; accounts disabled in the proxy sink to the end.
+    readonly property var sortedAccounts: {
+        const all = root.providerAccounts("claude").concat(root.providerAccounts("codex"))
+        return all.filter(account => !root.isDisabled(account))
+            .concat(all.filter(account => root.isDisabled(account)))
+    }
 
     function refreshUsage() {
         if (root.refreshInProgress)
@@ -46,6 +51,10 @@ PluginComponent {
             -1, // The collector bounds provider requests and SSH itself.
             root
         )
+    }
+
+    function isDisabled(account) {
+        return Boolean(account) && account.status === "disabled"
     }
 
     function isReachable(account) {
@@ -295,6 +304,43 @@ PluginComponent {
         }
     }
 
+    // Disabled accounts take one dim line: no quota, just the name.
+    component DisabledRow: Row {
+        id: disabledRoot
+
+        property var account
+
+        spacing: Theme.spacingS
+        opacity: 0.5
+
+        ProviderIcon {
+            id: disabledIcon
+
+            provider: disabledRoot.account.provider
+            size: Theme.iconSizeSmall - 4
+            anchors.verticalCenter: parent.verticalCenter
+        }
+
+        StyledText {
+            width: disabledRoot.width - disabledIcon.width - disabledTag.implicitWidth - disabledRoot.spacing * 2
+            text: root.displayName(disabledRoot.account)
+            textFormat: Text.PlainText
+            font.pixelSize: Theme.fontSizeSmall
+            color: Theme.surfaceText
+            elide: Text.ElideRight
+            anchors.verticalCenter: parent.verticalCenter
+        }
+
+        StyledText {
+            id: disabledTag
+
+            text: "disabled"
+            font.pixelSize: Theme.fontSizeSmall
+            color: Theme.surfaceVariantText
+            anchors.verticalCenter: parent.verticalCenter
+        }
+    }
+
     component AccountSection: Column {
         id: sectionRoot
 
@@ -425,23 +471,46 @@ PluginComponent {
                         model: contentColumn.sections
 
                         delegate: Column {
+                            id: sectionDelegate
+
                             required property var modelData
                             required property int index
 
+                            readonly property bool disabled: root.isDisabled(modelData)
+                            readonly property bool afterDisabled: index > 0
+                                && root.isDisabled(contentColumn.sections[index - 1])
+
                             width: parent.width
 
+                            // Disabled rows share one divider above the group.
                             Rectangle {
-                                visible: index > 0
+                                visible: sectionDelegate.index > 0 && !sectionDelegate.afterDisabled
                                 width: parent.width
                                 height: 1
                                 color: Theme.withAlpha(Theme.outline, 0.2)
                             }
 
                             AccountSection {
+                                visible: !sectionDelegate.disabled
                                 width: parent.width
-                                account: modelData
-                                topPadding: index > 0 ? Theme.spacingS + 2 : 0
-                                bottomPadding: index < contentColumn.sections.length - 1 ? Theme.spacingS + 2 : 0
+                                account: sectionDelegate.modelData
+                                topPadding: sectionDelegate.index > 0 ? Theme.spacingS + 2 : 0
+                                bottomPadding: sectionDelegate.index < contentColumn.sections.length - 1 ? Theme.spacingS + 2 : 0
+                            }
+
+                            Item {
+                                visible: sectionDelegate.disabled
+                                width: parent.width
+                                height: disabledRow.implicitHeight
+                                    + (sectionDelegate.afterDisabled ? Theme.spacingXS : Theme.spacingS)
+
+                                DisabledRow {
+                                    id: disabledRow
+
+                                    width: parent.width
+                                    y: parent.height - implicitHeight
+                                    account: sectionDelegate.modelData
+                                }
                             }
                         }
                     }

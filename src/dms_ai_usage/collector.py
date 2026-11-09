@@ -828,7 +828,12 @@ def fetch_proxy_accounts(config: dict[str, Any], timeout: float,
                 raise UsageError("usage_unavailable")
             result = account_result(provider, label, "ok", windows=windows, updated_at=iso_now())
         except UsageError as exc:
-            result = account_result(provider, label, "error", error=exc.code)
+            # Disabled in the proxy is a deliberate state, not an outage:
+            # report it as such instead of falling back to stale quota.
+            if exc.code == "disabled":
+                result = account_result(provider, label, "disabled")
+            else:
+                result = account_result(provider, label, "error", error=exc.code)
         if "account_id" in account:
             result["account_id"] = account["account_id"]
         email = matches[0].get("email") if len(matches) == 1 else account.get("email")
