@@ -26,7 +26,7 @@ CLAUDE_OAUTH_SCOPE = (
     "user:profile user:inference user:sessions:claude_code user:mcp_servers user:file_upload"
 )
 CLAUDE_REFRESH_SKEW_MS = 5 * 60 * 1000
-USER_AGENT = "dms-ai-usage/0.3.0"
+USER_AGENT = "dux-ai-usage/0.3.0"
 MAX_INPUT_BYTES = 1_048_576
 # Bars that poll within this many seconds of each other share one fetch.
 SHARE_SECONDS = 30.0
@@ -187,7 +187,7 @@ def refresh_claude_credentials(
     rejected_access_token: str | None = None,
 ) -> dict[str, Any]:
     """Refresh one profile and persist Anthropic's rotated token pair safely."""
-    lock_path = credentials_path.with_name(f".{credentials_path.name}.dms-ai-usage.lock")
+    lock_path = credentials_path.with_name(f".{credentials_path.name}.dux-ai-usage.lock")
     descriptor = os.open(lock_path, os.O_RDWR | os.O_CREAT, 0o600)
     try:
         os.chmod(lock_path, 0o600)
@@ -559,8 +559,8 @@ def fetch_codex(account: dict[str, Any], timeout: float) -> dict[str, Any]:
                 "id": 0,
                 "params": {
                     "clientInfo": {
-                        "name": "dms_ai_usage",
-                        "title": "DMS AI Usage",
+                        "name": "dux_ai_usage",
+                        "title": "Dux AI Usage",
                         "version": "0.3.0",
                     }
                 },

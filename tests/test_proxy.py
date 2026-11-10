@@ -10,8 +10,8 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from dms_ai_usage.collector import collect, collect_cached, fetch_proxy_accounts, iso_now, load_config, source_fingerprint, UsageError
-from dms_ai_usage.proxy import collect_proxy, discovered_accounts, NoRedirect, select_usage, ProxyError
+from dux_ai_usage.collector import collect, collect_cached, fetch_proxy_accounts, iso_now, load_config, source_fingerprint, UsageError
+from dux_ai_usage.proxy import collect_proxy, discovered_accounts, NoRedirect, select_usage, ProxyError
 
 
 class ProxyTests(unittest.TestCase):
@@ -87,9 +87,9 @@ class ProxyTests(unittest.TestCase):
             ssh_output.append(result.stdout)
             return result
 
-        with patch("dms_ai_usage.collector.subprocess.run", side_effect=local_ssh), \
-                patch("dms_ai_usage.collector.fetch_claude") as local_claude, \
-                patch("dms_ai_usage.collector.fetch_codex") as local_codex:
+        with patch("dux_ai_usage.collector.subprocess.run", side_effect=local_ssh), \
+                patch("dux_ai_usage.collector.fetch_claude") as local_claude, \
+                patch("dux_ai_usage.collector.fetch_codex") as local_codex:
             payload = collect(config, Path(self.directory.name) / "usage.json")
         local_claude.assert_not_called()
         local_codex.assert_not_called()
@@ -108,7 +108,7 @@ class ProxyTests(unittest.TestCase):
         self.assertEqual(provider_calls["codex-index"]["header"]["Chatgpt-Account-Id"], "private-account-id")
 
     def test_upstream_401_inside_successful_management_response(self) -> None:
-        with patch("dms_ai_usage.proxy.request_json", side_effect=[self.files,
+        with patch("dux_ai_usage.proxy.request_json", side_effect=[self.files,
                    {"status_code": 401, "body": "private-error"},
                    {"status_code": 429, "body": "private-error"}]):
             payload = collect_proxy(self.options)
@@ -118,13 +118,13 @@ class ProxyTests(unittest.TestCase):
     def test_exact_account_and_provider_match_required(self) -> None:
         self.files["files"][0]["provider"] = "codex"
         self.files["files"][1]["disabled"] = True
-        with patch("dms_ai_usage.proxy.request_json", return_value=self.files) as request:
+        with patch("dux_ai_usage.proxy.request_json", return_value=self.files) as request:
             payload = collect_proxy(self.options)
         self.assertEqual([a["error"] for a in payload["accounts"]], ["not_connected", "disabled"])
         request.assert_called_once()
 
     def test_plain_http_remote_host_is_rejected_before_sending_key(self) -> None:
-        with patch("dms_ai_usage.proxy.request_json") as request:
+        with patch("dux_ai_usage.proxy.request_json") as request:
             payload = collect_proxy(dict(self.options, base_url="http://example.com:8317"))
         self.assertEqual(payload, {"error": "invalid_config"})
         request.assert_not_called()
@@ -153,7 +153,7 @@ class ProxyTests(unittest.TestCase):
                 {"id": "seven_day", "label": "7d", "remaining_percent": 30},
                 {"id": "model:fable", "label": "Fable", "remaining_percent": 99}]}]}
         cache_path.write_text(json.dumps(old))
-        with patch("dms_ai_usage.collector.subprocess.run", return_value=subprocess.CompletedProcess([], 255, "")):
+        with patch("dux_ai_usage.collector.subprocess.run", return_value=subprocess.CompletedProcess([], 255, "")):
             payload = collect(config, cache_path)
         account = payload["accounts"][0]
         self.assertEqual((account["status"], account["error"]), ("stale", "proxy_unavailable"))
@@ -167,7 +167,7 @@ class ProxyTests(unittest.TestCase):
                 {"id": "model:fable", "label": "Fable"}, {"id": "seven_day", "label": "7d"}]},
             {"provider": "codex", "label": "X", "windows": [{"label": "5h"}, {"label": "7d"}]},
         ]}))
-        with patch("dms_ai_usage.collector.fetch_proxy_accounts") as fetch:
+        with patch("dux_ai_usage.collector.fetch_proxy_accounts") as fetch:
             payload = collect_cached({}, path)
         fetch.assert_not_called()
         self.assertEqual([[w["label"] for w in a["windows"]] for a in payload["accounts"]], [["7d"], ["7d"]])
@@ -183,7 +183,7 @@ class ProxyTests(unittest.TestCase):
                  "windows": [{"id": "seven_day", "label": "7d", "remaining_percent": 50}]}]}))
         remote = {"accounts": [{"provider": "claude", "label": "Personal", "error": "disabled",
                                 "email": "user@example.test"}]}
-        with patch("dms_ai_usage.collector.subprocess.run",
+        with patch("dux_ai_usage.collector.subprocess.run",
                    return_value=subprocess.CompletedProcess([], 0, json.dumps(remote))):
             payload = collect(config, path)
         account = payload["accounts"][0]
@@ -195,7 +195,7 @@ class ProxyTests(unittest.TestCase):
     def test_ssh_timeout_is_reported_without_stderr(self) -> None:
         config = {"cliproxyapi": {"ssh_host": "server", "management_key_file": "~/key"},
                   "claude": [{"label": "Personal", "proxy_auth_file": "claude.json"}]}
-        with patch("dms_ai_usage.collector.subprocess.run", side_effect=subprocess.TimeoutExpired("ssh", 8)):
+        with patch("dux_ai_usage.collector.subprocess.run", side_effect=subprocess.TimeoutExpired("ssh", 8)):
             result = fetch_proxy_accounts(config, 8)
         self.assertEqual(result[("claude", "Personal")]["error"], "timeout")
 
@@ -211,7 +211,7 @@ class ProxyTests(unittest.TestCase):
             data = ({"seven_day": {"utilization": 10}} if body["auth_index"] == "claude-index"
                     else {"rate_limit": {"primary_window": {"used_percent": 20, "limit_window_seconds": 604800}}})
             return {"status_code": 200, "body": json.dumps(data)}
-        with patch("dms_ai_usage.proxy.request_json", side_effect=request):
+        with patch("dux_ai_usage.proxy.request_json", side_effect=request):
             payload = collect_proxy(dict(self.options, discover_accounts=True, accounts=[]))
         self.assertEqual(len(payload["accounts"]), 3)
         self.assertEqual(sum(a.get("error") == "disabled" for a in payload["accounts"]), 1)
@@ -231,12 +231,12 @@ class ProxyTests(unittest.TestCase):
         old = {"schema": 1, "source_fingerprint": source_fingerprint(config), "accounts": [{"provider": "claude", "label": "Account 1", "account_id": "a" * 24,
             "status": "ok", "windows": [{"id": "seven_day", "label": "7d", "remaining_percent": 30}]}]}
         path.write_text(json.dumps(old))
-        with patch("dms_ai_usage.collector.subprocess.run", return_value=subprocess.CompletedProcess([], 255, "")):
+        with patch("dux_ai_usage.collector.subprocess.run", return_value=subprocess.CompletedProcess([], 255, "")):
             stale = collect(config, path)["accounts"][0]
         self.assertEqual((stale["status"], stale["account_id"]), ("stale", "a" * 24))
         remote = {"accounts": [{"provider": "claude", "label": "Account 1", "account_id": "b" * 24,
                                 "error": "auth_expired"}]}
-        with patch("dms_ai_usage.collector.subprocess.run", return_value=subprocess.CompletedProcess([], 0, json.dumps(remote))):
+        with patch("dux_ai_usage.collector.subprocess.run", return_value=subprocess.CompletedProcess([], 0, json.dumps(remote))):
             fresh = collect(config, path)["accounts"][0]
         self.assertEqual(fresh["status"], "error")
         self.assertEqual(fresh["windows"], [])
@@ -251,7 +251,7 @@ class ProxyTests(unittest.TestCase):
         path.write_text(json.dumps(old))
         remote = {"accounts": [{"provider": "claude", "label": "Account 1", "account_id": "a" * 24,
                                 "error": "auth_expired"}]}
-        with patch("dms_ai_usage.collector.subprocess.run", return_value=subprocess.CompletedProcess([], 0, json.dumps(remote))) as request:
+        with patch("dux_ai_usage.collector.subprocess.run", return_value=subprocess.CompletedProcess([], 0, json.dumps(remote))) as request:
             result = collect_cached(new_config, path)
         request.assert_called_once()
         self.assertEqual(result["accounts"][0]["status"], "error")
@@ -269,14 +269,14 @@ class ProxyTests(unittest.TestCase):
                  "windows": [{"id": "seven_day", "label": "7d", "remaining_percent": 30}]},
                 "not an account"]}))
         # The damaged entry above must not crash the run either.
-        with patch("dms_ai_usage.collector.subprocess.run", return_value=subprocess.CompletedProcess([], 255, "")):
+        with patch("dux_ai_usage.collector.subprocess.run", return_value=subprocess.CompletedProcess([], 255, "")):
             payload = collect(config, path)
         self.assertEqual(payload["error"], "proxy_unavailable")
         self.assertEqual([a["status"] for a in payload["accounts"]], ["stale"])
         # One account working again is no outage.
         remote = {"accounts": [{"provider": "claude", "label": "Account 1", "account_id": "a" * 24,
                                 "usage": {"seven_day": {"utilization": 10}}}]}
-        with patch("dms_ai_usage.collector.subprocess.run",
+        with patch("dux_ai_usage.collector.subprocess.run",
                    return_value=subprocess.CompletedProcess([], 0, json.dumps(remote))):
             payload = collect(config, path)
         self.assertNotIn("error", payload)
@@ -292,7 +292,7 @@ class ProxyTests(unittest.TestCase):
             stamp = (datetime.now(timezone.utc) - timedelta(seconds=age_seconds)).isoformat()
             path.write_text(json.dumps({"schema": 1, "generated_at": stamp,
                 "source_fingerprint": source_fingerprint(config), "accounts": []}))
-            with patch("dms_ai_usage.collector.subprocess.run",
+            with patch("dux_ai_usage.collector.subprocess.run",
                        return_value=subprocess.CompletedProcess([], 0, json.dumps(remote))) as request:
                 collect_cached(config, path)
             self.assertEqual(request.call_count, fetches, f"cache {age_seconds}s old")

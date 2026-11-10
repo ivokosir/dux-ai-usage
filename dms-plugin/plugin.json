@@ -1,9 +1,9 @@
 {
-  "id": "dmsAiUsage",
+  "id": "aiUsage",
   "name": "AI Usage",
   "description": "Claude and Codex subscription headroom",
   "version": "0.3.0",
-  "author": "dms-ai-usage contributors",
+  "author": "dux-ai-usage contributors",
   "type": "widget",
   "capabilities": [
     "dankbar-widget"

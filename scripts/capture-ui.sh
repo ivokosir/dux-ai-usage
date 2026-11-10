@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-output_dir="${1:-/tmp/dms-ai-usage-preview}"
+output_dir="${1:-/tmp/dux-ai-usage-preview}"
 case "$output_dir" in
   /*) ;;
   *)
@@ -17,7 +17,7 @@ for command_name in dms jq magick niri; do
   fi
 done
 
-screen="${DMS_AI_USAGE_SCREEN:-DP-1}"
+screen="${DUX_AI_USAGE_SCREEN:-DP-1}"
 screen_json="$(niri msg -j outputs)"
 screen_width="$(jq -r --arg name "$screen" '.[$name].logical.width // empty' <<<"$screen_json")"
 screen_height="$(jq -r --arg name "$screen" '.[$name].logical.height // empty' <<<"$screen_json")"
@@ -34,15 +34,15 @@ popout_x=$((screen_width - popout_width))
 
 umask 077
 mkdir -p "$output_dir"
-dms ipc call plugin-scan reload dmsAiUsage >/dev/null
+dms ipc call plugin-scan reload aiUsage >/dev/null
 sleep 5
 dms screenshot output -o "$screen" --stdout --no-file --no-clipboard --no-notify \
   | magick png:- -crop "${bar_width}x64+${bar_x}+0" +repage "$output_dir/bar.ui.png"
 
-dms ipc call widget toggle dmsAiUsage >/dev/null
+dms ipc call widget toggle aiUsage >/dev/null
 sleep 1
 dms screenshot output -o "$screen" --stdout --no-file --no-clipboard --no-notify \
   | magick png:- -crop "${popout_width}x${popout_height}+${popout_x}+0" +repage "$output_dir/popout.ui.png"
-dms ipc call widget toggle dmsAiUsage >/dev/null
+dms ipc call widget toggle aiUsage >/dev/null
 
 printf '%s\n' "$output_dir/bar.ui.png" "$output_dir/popout.ui.png"

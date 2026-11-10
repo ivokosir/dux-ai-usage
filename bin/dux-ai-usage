@@ -7,6 +7,6 @@ from pathlib import Path
 repo_src = Path(__file__).resolve().parents[1] / "src"
 sys.path.insert(0, str(repo_src))
 
-from dms_ai_usage.cli import main
+from dux_ai_usage.cli import main
 
 raise SystemExit(main())

@@ -19,7 +19,7 @@ PluginComponent {
     property real refreshStartedMs: 0
     // The clock behind the countdowns; it only ticks while the popout is open.
     property real nowMs: Date.now()
-    property string collectorPath: Quickshell.env("HOME") + "/.local/bin/dms-ai-usage"
+    property string collectorPath: Quickshell.env("HOME") + "/.local/bin/dux-ai-usage"
 
     // Active subscriptions first; accounts disabled in the proxy sink to the end.
     readonly property var sortedAccounts: {

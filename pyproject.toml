@@ -3,13 +3,13 @@ requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "dms-ai-usage"
+name = "dux-ai-usage"
 version = "0.3.0"
-description = "DankMaterialShell usage widget for multiple Claude and Codex subscriptions"
+description = "Dux Shell usage widget for multiple Claude and Codex subscriptions"
 readme = "README.md"
 requires-python = ">=3.11"
 license = "MIT"
-authors = [{name = "dms-ai-usage contributors"}]
+authors = [{name = "dux-ai-usage contributors"}]
 classifiers = [
   "Operating System :: POSIX :: Linux",
   "Programming Language :: Python :: 3",
@@ -17,7 +17,7 @@ classifiers = [
 dependencies = []
 
 [project.scripts]
-dms-ai-usage = "dms_ai_usage.cli:main"
+dux-ai-usage = "dux_ai_usage.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

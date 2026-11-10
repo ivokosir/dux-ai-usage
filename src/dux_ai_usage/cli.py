@@ -12,12 +12,15 @@ from .collector import UsageError, collect, collect_cached, load_config
 
 def default_config_path() -> Path:
     root = Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config"))
-    return root / "dms-ai-usage" / "config.json"
+    path = root / "dux-ai-usage" / "config.json"
+    # The project was called dms-ai-usage; install.sh moves the folder over.
+    old = root / "dms-ai-usage" / "config.json"
+    return old if old.is_file() and not path.is_file() else path
 
 
 def default_cache_path() -> Path:
     root = Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache"))
-    return root / "dms-ai-usage" / "usage.json"
+    return root / "dux-ai-usage" / "usage.json"
 
 
 def parser() -> argparse.ArgumentParser:

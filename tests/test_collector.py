@@ -14,7 +14,7 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from dms_ai_usage.collector import (
+from dux_ai_usage.collector import (
     NoRedirectHandler,
     UsageError,
     account_result,
@@ -355,7 +355,7 @@ class SharedCacheTests(unittest.TestCase):
                 "claude": [{"label": "Test", "config_dir": str(directory)}],
                 "codex": [],
             }
-            with patch("dms_ai_usage.collector.fetch_claude", side_effect=fake_fetch):
+            with patch("dux_ai_usage.collector.fetch_claude", side_effect=fake_fetch):
                 with ThreadPoolExecutor(max_workers=2) as executor:
                     results = list(
                         executor.map(lambda _index: collect_cached(config, cache_path), range(2))

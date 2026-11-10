@@ -1,20 +1,22 @@
-# DMS AI Usage
+# Dux AI Usage
 
-A small DankMaterialShell widget for Claude and Codex subscriptions managed by your own CLIProxyAPI server.
+A small [Dux Shell](https://github.com/duxlabs-dev/dux-shell) widget (the `dms` command, once DankMaterialShell) for Claude and Codex subscriptions managed by your own CLIProxyAPI server.
 
-The bar shows one provider icon per discovered subscription, without account names. The popup shows each provider icon with the full account email and usage beneath it. Accounts whose usage cannot be loaded stay visible; the popup explains their status. Claude's popup shows five-hour and weekly limits; Codex shows its weekly limit. Model-specific quotas are hidden.
+The bar shows a single agent icon; it turns red when usage can't be refreshed. The popup shows each provider icon with the full account email and usage beneath it. Accounts whose usage cannot be loaded stay visible; the popup explains their status. Claude's popup shows five-hour and weekly limits; Codex shows its weekly limit. Model-specific quotas are hidden.
 
 ## Install
 
-Requirements: Python 3.11+ on your desktop and proxy server, DankMaterialShell 1.5+, SSH access without interactive prompts, and CLIProxyAPI with its management API enabled.
+Requirements: Python 3.11+ on your desktop and proxy server, Dux Shell (`dms` 1.5+), SSH access without interactive prompts, and CLIProxyAPI with its management API enabled.
 
 ```bash
-git clone https://github.com/ivokosir/dms-ai-usage.git
-cd dms-ai-usage
+git clone https://github.com/ivokosir/dux-ai-usage.git
+cd dux-ai-usage
 ./install.sh
 ```
 
-Edit `~/.config/dms-ai-usage/config.json`, then enable **AI Usage** in DMS Settings → Plugins and add `dmsAiUsage` to a DankBar.
+Edit `~/.config/dux-ai-usage/config.json`, then enable **AI Usage** in the shell's Settings → Plugins and add `aiUsage` to a bar.
+
+Coming from `dms-ai-usage`? Run `./install.sh` again: it moves your config and cache to the new names and relinks. Then enable **AI Usage** again and swap `dmsAiUsage` for `aiUsage` in your bar.
 
 ## Connect your proxy
 
@@ -54,19 +56,19 @@ This widget's configuration requires CLIProxyAPI accounts. Local `CLAUDE_CONFIG_
 ## Refresh and troubleshooting
 
 ```bash
-dms-ai-usage --pretty
+dux-ai-usage --pretty
 dms ipc call plugin-scan scan
-dms ipc call plugins enable dmsAiUsage
-dms ipc call plugin-scan reload dmsAiUsage
+dms ipc call plugins enable aiUsage
+dms ipc call plugin-scan reload aiUsage
 ```
 
-The default polling interval is ten minutes. Network and provider failures retain the last sanitized reading with a stale status. Accounts without a previous reading remain in the bar and popup, so an expired subscription does not disappear. Multiple bars share a locked cache and trigger only one refresh.
+The default polling interval is ten minutes, and opening the popup refreshes too. Network and provider failures retain the last sanitized reading with a stale status that says why and how old it is; when nothing can be read the bar icon turns red. Accounts without a previous reading remain in the popup, so an expired subscription does not disappear. Bars that ask within 30 seconds of each other share one refresh through a locked cache.
 
 The provider quota endpoints used by CLIProxyAPI are not documented public APIs and may change. See CLIProxyAPI's [API-call handler](https://github.com/router-for-me/CLIProxyAPI/blob/main/internal/api/handlers/management/api_tools.go) and the management panel's [quota endpoints](https://github.com/router-for-me/Cli-Proxy-API-Management-Center/blob/main/src/utils/quota/constants.ts).
 
 ## Privacy
 
-Management keys and provider credentials stay on the proxy server. Account emails are intentionally returned for local popup display and included in the private cache and CLI output. Display labels, opaque account identifiers, quota numbers, reset times, and sanitized statuses also return. Management keys, provider credentials, auth filenames, and raw provider responses are never returned or cached. Do not publish live CLI output or screenshots containing account emails. The cache is mode `0600` under `~/.cache/dms-ai-usage/usage.json`.
+Management keys and provider credentials stay on the proxy server. Account emails are intentionally returned for local popup display and included in the private cache and CLI output. Display labels, opaque account identifiers, quota numbers, reset times, and sanitized statuses also return. Management keys, provider credentials, auth filenames, and raw provider responses are never returned or cached. Do not publish live CLI output or screenshots containing account emails. The cache is mode `0600` under `~/.cache/dux-ai-usage/usage.json`.
 
 Real configuration lives outside this repository. Both committed example files contain placeholders. Local configuration, usage caches, environment files, private keys, and UI captures are ignored by Git. Review staged changes before publishing; ignore rules cannot remove data from earlier commits.
 
