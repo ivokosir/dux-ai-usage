@@ -7,9 +7,12 @@ config_root="${XDG_CONFIG_HOME:-$HOME/.config}"
 cache_root="${XDG_CACHE_HOME:-$HOME/.cache}"
 bin_dir="$HOME/.local/bin"
 app_config_dir="$config_root/dux-ai-usage"
-# Dux Shell keeps its config in ~/.config/dms (older DankMaterialShell: ~/.config/DankMaterialShell).
+# Dux Shell keeps its config in ~/.config/dms. Only an existing older setup
+# (DankMaterialShell, no dms folder yet) still uses the old place.
 shell_conf="$config_root/dms"
-[[ -d "$shell_conf" ]] || shell_conf="$config_root/DankMaterialShell"
+if [[ ! -d "$shell_conf" && -d "$config_root/DankMaterialShell" ]]; then
+  shell_conf="$config_root/DankMaterialShell"
+fi
 plugins_dir="$shell_conf/plugins"
 
 # This project used to be called dms-ai-usage: bring its config and cache along

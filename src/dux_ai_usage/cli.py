@@ -60,4 +60,5 @@ def main(argv: list[str] | None = None) -> int:
     separators = None if args.pretty else (",", ":")
     json.dump(payload, sys.stdout, ensure_ascii=False, indent=indent, separators=separators)
     sys.stdout.write("\n")
-    return 0
+    # Nothing could be read (the payload says why): scripts can tell from the exit code.
+    return 1 if payload.get("error") else 0

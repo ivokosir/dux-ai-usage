@@ -297,6 +297,22 @@ class ProxyTests(unittest.TestCase):
                 collect_cached(config, path)
             self.assertEqual(request.call_count, fetches, f"cache {age_seconds}s old")
 
+    def test_damaged_cache_does_not_block_refreshing(self) -> None:
+        config = {"cliproxyapi": {"ssh_host": "server", "management_key_file": "~/key"}}
+        path = Path(self.directory.name) / "usage.json"
+        # A label that is not text, and a quota that is not a number.
+        path.write_text('{"schema": 1, "generated_at": "2026-01-01T00:00:00Z", "source_fingerprint": "%s",'
+                        ' "accounts": [{"provider": "claude", "label": [], "windows": []},'
+                        ' {"provider": "claude", "label": "Account 1", "account_id": "%s", "status": "ok",'
+                        ' "windows": [{"id": "seven_day", "label": "7d", "remaining_percent": NaN}]}]}'
+                        % (source_fingerprint(config), "a" * 24))
+        remote = {"accounts": [{"provider": "claude", "label": "Account 1", "account_id": "a" * 24,
+                                "usage": {"seven_day": {"utilization": 10}}}]}
+        with patch("dux_ai_usage.collector.subprocess.run",
+                   return_value=subprocess.CompletedProcess([], 0, json.dumps(remote))):
+            payload = collect_cached(config, path)
+        self.assertEqual([a["status"] for a in payload["accounts"]], ["ok"])
+
     def test_widget_config_requires_proxy_accounts_and_accepts_examples(self) -> None:
         path = Path(self.directory.name) / "config.json"
         connection = {"ssh_host": "my-server", "management_key_file": "~/management.key"}

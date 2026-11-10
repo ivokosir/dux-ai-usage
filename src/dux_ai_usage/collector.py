@@ -662,10 +662,15 @@ def load_cache(path: Path) -> dict[str, Any]:
     accounts = data.get("accounts")
     if not isinstance(accounts, list):
         return {}
+    # A damaged entry must not crash every later run (which could then never
+    # replace the cache): keep only accounts that have the shape we wrote.
+    accounts = [account for account in accounts
+                if isinstance(account, dict) and isinstance(account.get("provider"), str)
+                and isinstance(account.get("label"), str)]
     for account in accounts:
-        if isinstance(account, dict):
-            account["windows"] = visible_windows(account.get("provider", ""), account.get("windows"))
-    data["bar_text"] = bar_text([item for item in accounts if isinstance(item, dict)])
+        account["windows"] = visible_windows(account["provider"], account.get("windows"))
+    data["accounts"] = accounts
+    data["bar_text"] = bar_text(accounts)
     return data
 
 
@@ -699,7 +704,7 @@ def window_remaining(account: dict[str, Any], wanted: str) -> int | None:
         if window.get("label") != wanted:
             continue
         remaining = window.get("remaining_percent")
-        if isinstance(remaining, (int, float)):
+        if isinstance(remaining, (int, float)) and not isinstance(remaining, bool) and math.isfinite(remaining):
             return int(round(remaining))
     return None
 

@@ -472,9 +472,11 @@ PluginComponent {
         }
     }
 
+    // Only while the widget is on a bar you can see (or its popup is open): a
+    // hidden one would keep starting SSH runs for nobody.
     Timer {
         interval: root.refreshSeconds * 1000
-        running: true
+        running: root.surfaceLive || root.interactionActive
         repeat: true
         triggeredOnStart: true
         onTriggered: root.refreshUsage()
