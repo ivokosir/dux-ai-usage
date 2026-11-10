@@ -13,7 +13,12 @@ PluginComponent {
     property string generatedAt: ""
     property int refreshSeconds: 600
     property bool loadFailed: false
+    // Why the last refresh failed ("proxy unavailable", "no config"), or "".
+    property string lastError: ""
     property bool refreshInProgress: false
+    property real refreshStartedMs: 0
+    // The clock behind the countdowns; it only ticks while the popout is open.
+    property real nowMs: Date.now()
     property string collectorPath: Quickshell.env("HOME") + "/.local/bin/dms-ai-usage"
 
     // Active subscriptions first; accounts disabled in the proxy sink to the end.
@@ -24,27 +29,39 @@ PluginComponent {
     }
 
     function refreshUsage() {
-        if (root.refreshInProgress)
+        // One run at a time. If a run never reports back (the collector could not
+        // even start), stop waiting for it after 8 minutes; a real run is done
+        // well before that.
+        if (root.refreshInProgress && Date.now() - root.refreshStartedMs < 480000)
             return
         root.refreshInProgress = true
+        root.refreshStartedMs = Date.now()
         Proc.runCommand(
             null,
             [root.collectorPath, "--cached"],
             (stdout, exitCode) => {
                 root.refreshInProgress = false
+                root.nowMs = Date.now()
                 if (exitCode !== 0 && !stdout.trim()) {
                     root.loadFailed = true
+                    root.lastError = "collector failed"
                     return
                 }
                 try {
                     const payload = JSON.parse(stdout.trim())
-                    root.accounts = Array.isArray(payload.accounts) ? payload.accounts : []
-                    root.generatedAt = payload.generated_at || ""
                     root.loadFailed = exitCode !== 0 || Boolean(payload.error)
+                    root.lastError = String(payload.error || (exitCode !== 0 ? "collector failed" : "")).replace(/_/g, " ")
+                    // A run that could not even read its config has no accounts to
+                    // offer: keep showing the ones we have.
+                    if (Array.isArray(payload.accounts) && (payload.accounts.length > 0 || !root.loadFailed))
+                        root.accounts = payload.accounts
+                    if (payload.generated_at)
+                        root.generatedAt = payload.generated_at
                     if (payload.refresh_seconds >= 30)
                         root.refreshSeconds = payload.refresh_seconds
                 } catch (error) {
                     root.loadFailed = true
+                    root.lastError = "collector failed"
                 }
             },
             100,
@@ -145,8 +162,12 @@ PluginComponent {
     function statusText(account) {
         if (account.status === "ok")
             return root.windowsOf(account).length > 0 ? "" : "no usage data"
-        if (account.status === "stale")
-            return "stale"
+        if (account.status === "stale") {
+            // Say why it is old, and how old.
+            const why = String(account.error || "").replace(/_/g, " ")
+            const age = root.agoText(account.updated_at)
+            return ["stale", why, age].filter(part => part.length > 0).join(" · ")
+        }
         const status = String(account.status || "unavailable").replace(/_/g, " ")
         const error = String(account.error || "").replace(/_/g, " ")
         return error.length > 0 && error !== status ? status + " · " + error : status
@@ -164,10 +185,21 @@ PluginComponent {
         return result
     }
 
-    // Language-neutral countdown ("57m", "5d 17h"). Reading generatedAt
-    // makes bindings recompute on every collector refresh.
+    // "12m ago", "3h ago", "9d ago" for an ISO time; "" when unknown.
+    function agoText(iso) {
+        const then = iso ? new Date(iso).getTime() : NaN
+        if (isNaN(then))
+            return ""
+        const minutes = Math.max(0, Math.floor((root.nowMs - then) / 60000))
+        if (minutes < 60)
+            return minutes + "m ago"
+        const hours = Math.floor(minutes / 60)
+        return hours < 24 ? hours + "h ago" : Math.floor(hours / 24) + "d ago"
+    }
+
+    // Language-neutral countdown ("57m", "5d 17h"), counted from root.nowMs so it
+    // stays right while the popout is open.
     function resetIn(item) {
-        const refreshTick = root.generatedAt
         const value = item ? item.resets_at : undefined
         if (value === undefined || value === null || value === "")
             return ""
@@ -177,7 +209,7 @@ PluginComponent {
             : new Date(value)
         if (isNaN(date.getTime()))
             return ""
-        const minutes = Math.floor((date.getTime() - Date.now()) / 60000)
+        const minutes = Math.floor((date.getTime() - root.nowMs) / 60000)
         if (minutes <= 0)
             return "now"
         if (minutes < 60)
@@ -218,14 +250,34 @@ PluginComponent {
         width: size
         height: size
 
+        // The apps' own icons when they are installed...
+        readonly property string iconSource: Quickshell.iconPath(provider === "claude" ? "claude-desktop" : "chatgpt", true)
+
         Image {
             anchors.fill: parent
-            source: Quickshell.iconPath(providerIconRoot.provider === "claude" ? "claude-desktop" : "chatgpt", true)
+            visible: providerIconRoot.iconSource !== ""
+            source: providerIconRoot.iconSource
             sourceSize.width: 32
             sourceSize.height: 32
             fillMode: Image.PreserveAspectFit
             smooth: true
             mipmap: true
+        }
+
+        // ...else a letter, so Claude and Codex rows can still be told apart.
+        Rectangle {
+            anchors.fill: parent
+            visible: providerIconRoot.iconSource === ""
+            radius: 4
+            color: Theme.withAlpha(Theme.primary, 0.18)
+
+            StyledText {
+                anchors.centerIn: parent
+                text: providerIconRoot.provider === "claude" ? "C" : "X"
+                font.pixelSize: Math.round(providerIconRoot.size * 0.6)
+                font.weight: Font.Medium
+                color: Theme.primary
+            }
         }
     }
 
@@ -249,7 +301,7 @@ PluginComponent {
         Image {
             width: 20
             height: 20
-            source: "data:image/svg+xml;base64," + Qt.btoa(agentIconRoot.svg)
+            source: "data:image/svg+xml;utf8," + encodeURIComponent(agentIconRoot.svg)
             sourceSize.width: 20
             sourceSize.height: 20
             smooth: false
@@ -263,11 +315,16 @@ PluginComponent {
         property string name
         property var windowData
         readonly property real remaining: root.remainingOf(windowData)
+        // The columns are sized for a 12 px font; they grow with the font setting.
+        readonly property real fontScale: Math.max(1, Theme.fontSizeSmall / 12)
+        readonly property real nameWidth: Math.ceil(48 * fontScale)
+        readonly property real percentWidth: Math.ceil(36 * fontScale)
+        readonly property real resetWidth: Math.ceil(56 * fontScale)
 
         spacing: Theme.spacingM
 
         StyledText {
-            width: 48
+            width: limitRoot.nameWidth
             text: limitRoot.name
             font.pixelSize: Theme.fontSizeSmall
             color: Theme.surfaceVariantText
@@ -275,7 +332,7 @@ PluginComponent {
         }
 
         CapacityMeter {
-            width: limitRoot.width - 48 - 36 - 52 - limitRoot.spacing * 3
+            width: Math.max(0, limitRoot.width - limitRoot.nameWidth - limitRoot.percentWidth - limitRoot.resetWidth - limitRoot.spacing * 3)
             height: 4
             value: limitRoot.remaining
             meterColor: root.statusColor(limitRoot.remaining)
@@ -284,7 +341,7 @@ PluginComponent {
         }
 
         StyledText {
-            width: 36
+            width: limitRoot.percentWidth
             text: root.percentText(limitRoot.windowData)
             font.pixelSize: Theme.fontSizeSmall
             font.features: { "tnum": 1 }
@@ -294,7 +351,7 @@ PluginComponent {
         }
 
         StyledText {
-            width: 52
+            width: limitRoot.resetWidth
             text: root.resetIn(limitRoot.windowData)
             font.pixelSize: Theme.fontSizeSmall
             font.features: { "tnum": 1 }
@@ -423,6 +480,22 @@ PluginComponent {
         onTriggered: root.refreshUsage()
     }
 
+    // Opening the popout shows current numbers: refresh, and keep the countdowns
+    // moving while it is open.
+    onInteractionActiveChanged: {
+        if (root.interactionActive) {
+            root.nowMs = Date.now()
+            root.refreshUsage()
+        }
+    }
+
+    Timer {
+        interval: 30000
+        repeat: true
+        running: root.interactionActive
+        onTriggered: root.nowMs = Date.now()
+    }
+
     horizontalBarPill: Component {
         AgentIcon {}
     }
@@ -466,6 +539,19 @@ PluginComponent {
                     x: Theme.spacingS
                     y: Theme.spacingS
                     width: listFlick.width - Theme.spacingS * 2 - (scrollBar.visible ? scrollBar.width : 0)
+
+                    // The whole refresh failed: say so above the (old) numbers.
+                    StyledText {
+                        visible: root.loadFailed && root.accounts.length > 0
+                        width: parent.width
+                        bottomPadding: Theme.spacingS
+                        text: "Can't refresh" + (root.lastError.length > 0 ? " · " + root.lastError : "")
+                            + (root.agoText(root.generatedAt).length > 0 ? " · last try " + root.agoText(root.generatedAt) : "")
+                        textFormat: Text.PlainText
+                        font.pixelSize: Theme.fontSizeSmall
+                        color: Theme.error
+                        wrapMode: Text.Wrap
+                    }
 
                     Repeater {
                         model: contentColumn.sections
@@ -517,9 +603,13 @@ PluginComponent {
 
                     StyledText {
                         visible: root.accounts.length === 0
-                        text: root.loadFailed ? "Collector failed" : "No subscriptions found"
+                        width: parent.width
+                        text: root.loadFailed ? "Can't load usage" + (root.lastError.length > 0 ? " · " + root.lastError : "")
+                            : root.generatedAt === "" ? "Loading…"
+                            : "No subscriptions found"
                         font.pixelSize: Theme.fontSizeMedium
-                        color: Theme.surfaceVariantText
+                        color: root.loadFailed ? Theme.error : Theme.surfaceVariantText
+                        wrapMode: Text.Wrap
                     }
                 }
 

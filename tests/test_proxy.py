@@ -259,6 +259,44 @@ class ProxyTests(unittest.TestCase):
         self.assertEqual(result["source_fingerprint"], source_fingerprint(new_config))
         self.assertNotIn("new-server", path.read_text())
 
+    def test_outage_is_reported_at_the_top_while_old_readings_stay(self) -> None:
+        config = {"cliproxyapi": {"ssh_host": "server", "management_key_file": "~/key"}}
+        path = Path(self.directory.name) / "usage.json"
+        path.write_text(json.dumps({"schema": 1, "generated_at": "2026-01-01T00:00:00Z",
+            "source_fingerprint": source_fingerprint(config), "accounts": [
+                {"provider": "claude", "label": "Account 1", "account_id": "a" * 24, "status": "ok",
+                 "updated_at": "2026-01-01T00:00:00Z",
+                 "windows": [{"id": "seven_day", "label": "7d", "remaining_percent": 30}]},
+                "not an account"]}))
+        # The damaged entry above must not crash the run either.
+        with patch("dms_ai_usage.collector.subprocess.run", return_value=subprocess.CompletedProcess([], 255, "")):
+            payload = collect(config, path)
+        self.assertEqual(payload["error"], "proxy_unavailable")
+        self.assertEqual([a["status"] for a in payload["accounts"]], ["stale"])
+        # One account working again is no outage.
+        remote = {"accounts": [{"provider": "claude", "label": "Account 1", "account_id": "a" * 24,
+                                "usage": {"seven_day": {"utilization": 10}}}]}
+        with patch("dms_ai_usage.collector.subprocess.run",
+                   return_value=subprocess.CompletedProcess([], 0, json.dumps(remote))):
+            payload = collect(config, path)
+        self.assertNotIn("error", payload)
+        self.assertEqual(payload["accounts"][0]["status"], "ok")
+
+    def test_cache_older_than_the_share_window_is_refreshed(self) -> None:
+        from datetime import datetime, timedelta, timezone
+        config = {"cliproxyapi": {"ssh_host": "server", "management_key_file": "~/key"}, "refresh_seconds": 600}
+        path = Path(self.directory.name) / "usage.json"
+        remote = {"accounts": [{"provider": "claude", "label": "Account 1", "account_id": "a" * 24,
+                                "usage": {"seven_day": {"utilization": 10}}}]}
+        for age_seconds, fetches in ((5, 0), (597, 1)):
+            stamp = (datetime.now(timezone.utc) - timedelta(seconds=age_seconds)).isoformat()
+            path.write_text(json.dumps({"schema": 1, "generated_at": stamp,
+                "source_fingerprint": source_fingerprint(config), "accounts": []}))
+            with patch("dms_ai_usage.collector.subprocess.run",
+                       return_value=subprocess.CompletedProcess([], 0, json.dumps(remote))) as request:
+                collect_cached(config, path)
+            self.assertEqual(request.call_count, fetches, f"cache {age_seconds}s old")
+
     def test_widget_config_requires_proxy_accounts_and_accepts_examples(self) -> None:
         path = Path(self.directory.name) / "config.json"
         connection = {"ssh_host": "my-server", "management_key_file": "~/management.key"}

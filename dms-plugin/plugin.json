@@ -2,7 +2,7 @@
   "id": "dmsAiUsage",
   "name": "AI Usage",
   "description": "Claude and Codex subscription headroom",
-  "version": "0.1.0",
+  "version": "0.3.0",
   "author": "dms-ai-usage contributors",
   "type": "widget",
   "capabilities": [

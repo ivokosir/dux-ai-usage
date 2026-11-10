@@ -37,7 +37,11 @@ def parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     args = parser().parse_args(argv)
     try:
-        config = load_config(args.config.expanduser())
+        config_path = args.config.expanduser()
+        if not config_path.is_file():
+            # Say what is really wrong instead of the generic "not connected".
+            raise UsageError("no_config")
+        config = load_config(config_path)
         collector = collect_cached if args.cached else collect
         payload = collector(config, args.cache.expanduser())
     except UsageError as exc:

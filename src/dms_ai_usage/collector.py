@@ -26,8 +26,10 @@ CLAUDE_OAUTH_SCOPE = (
     "user:profile user:inference user:sessions:claude_code user:mcp_servers user:file_upload"
 )
 CLAUDE_REFRESH_SKEW_MS = 5 * 60 * 1000
-USER_AGENT = "dms-ai-usage/0.2.1"
+USER_AGENT = "dms-ai-usage/0.3.0"
 MAX_INPUT_BYTES = 1_048_576
+# Bars that poll within this many seconds of each other share one fetch.
+SHARE_SECONDS = 30.0
 
 
 class UsageError(Exception):
@@ -559,7 +561,7 @@ def fetch_codex(account: dict[str, Any], timeout: float) -> dict[str, Any]:
                     "clientInfo": {
                         "name": "dms_ai_usage",
                         "title": "DMS AI Usage",
-                        "version": "0.1.0",
+                        "version": "0.3.0",
                     }
                 },
             }
@@ -803,7 +805,10 @@ def fetch_proxy_accounts(config: dict[str, Any], timeout: float,
             payload = {"error": "bad_response"}
         if payload.get("error"):
             # Retain discovered accounts during outages, including their stable IDs.
-            selected = list(previous or configured)
+            # A damaged cache entry is skipped rather than crashing every run.
+            selected = [account for account in (previous or configured)
+                        if isinstance(account, dict) and isinstance(account.get("provider"), str)
+                        and isinstance(account.get("label"), str)]
             if not selected:
                 raise UsageError(str(payload["error"]))
         else:
@@ -842,6 +847,19 @@ def fetch_proxy_accounts(config: dict[str, Any], timeout: float,
             result["email"] = email
         results[(provider, label)] = result
     return results
+
+
+def outage_error(accounts: list[dict[str, Any]]) -> str | None:
+    """When no account could be read, say why at the top level.
+
+    Old readings are still shown (as stale), so without this a dead proxy or a
+    rejected key would look like a healthy widget.
+    """
+    live = [account for account in accounts if account.get("status") != "disabled"]
+    if not live or any(account.get("status") not in ("stale", "error") for account in live):
+        return None
+    codes = [str(account.get("error") or "unavailable") for account in live]
+    return max(set(codes), key=codes.count)
 
 
 def collect(config: dict[str, Any], cache_path: Path) -> dict[str, Any]:
@@ -890,6 +908,9 @@ def collect(config: dict[str, Any], cache_path: Path) -> dict[str, Any]:
         "bar_text": bar_text(accounts),
         "accounts": accounts,
     }
+    outage = outage_error(accounts)
+    if outage:
+        payload["error"] = outage
     if config.get("cliproxyapi"):
         payload["source_fingerprint"] = source_fingerprint(config)
     write_cache(cache_path, payload)
@@ -908,7 +929,10 @@ def collect_cached(config: dict[str, Any], cache_path: Path) -> dict[str, Any]:
         refresh_seconds = float(config.get("refresh_seconds", 600))
         same_source = (not config.get("cliproxyapi")
                        or cached.get("source_fingerprint") == source_fingerprint(config))
-        if same_source and cache_is_fresh(cached, refresh_seconds):
+        # Only to share one fetch between bars that ask at the same moment. Using the
+        # whole refresh interval here made every second poll return the cache
+        # (it is always a few seconds younger than the interval).
+        if same_source and cache_is_fresh(cached, min(refresh_seconds, SHARE_SECONDS)):
             return cached
         return collect(config, cache_path)
     finally:
